@@ -1,0 +1,19 @@
+{
+  "name": "nodejs-app",
+  "version": "1.0.0",
+  "description": "A minimal Node.js web application.",
+  "main": "index.js",
+  "author": "alphasec",
+  "license": "MIT",
+  "dependencies": {
+    "body-parser": "^1.20.2",
+    "express": "^4.19.2",
+    "fs": "^0.0.1-security",
+    "i": "^0.3.7",
+    "mysql": "^2.18.1",
+    "mysql2": "^3.9.7"
+  },
+  "scripts": {
+    "start": "node ./index.js"
+  }
+}

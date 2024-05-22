@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Registro de Asistencia</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.0/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  </head>
+  <body>
+    <h1>Registro de Asistencia</h1>
+    <form id="formRegistro">
+      <label for="dni">DNI:</label>
+      <input type="text" id="dni" name="dni" required />
+      <button type="submit">Registrar</button>
+    </form>
+
+    <h2>Asistencias registradas:</h2>
+    <table id="tablaAsistencias">
+      <thead>
+        <tr>
+          <th>Trabajador</th>
+          <th>Fecha</th>
+          <th>Hora de entrada</th>
+        </tr>
+      </thead>
+      <tbody id="tbodyAsistencias">
+        <!-- Aquí se llenarán los datos dinámicamente -->
+      </tbody>
+    </table>
+
+    <button id="btnGenerarExcel">Generar Excel</button>
+
+    <script>
+      // Función para cargar las asistencias desde el servidor y actualizar la tabla
+      async function cargarAsistencias() {
+        try {
+          const response = await fetch("/asistencias", {
+            method: "GET",
+          });
+          const data = await response.json();
+          const tbody = document.getElementById("tbodyAsistencias");
+          tbody.innerHTML = "";
+          data.forEach((asistencia) => {
+            const row = `<tr>
+                            <td>${asistencia.nombre}</td>
+                            <td>${asistencia.fecha}</td>
+                            <td>${asistencia.hora_entrada}</td>
+                        </tr>`;
+            tbody.innerHTML += row;
+          });
+        } catch (error) {
+          console.error("Error:", error);
+          alert("Ocurrió un error al cargar las asistencias");
+        }
+      }
+
+      document
+        .getElementById("formRegistro")
+        .addEventListener("submit", async (event) => {
+          event.preventDefault();
+          const dni = document.getElementById("dni").value;
+          try {
+            const response = await fetch("/registrar-asistencia", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({ dni }),
+            });
+            const data = await response.text();
+            alert(data);
+            cargarAsistencias();
+          } catch (error) {
+            console.error("Error:", error);
+            alert("Ocurrió un error al intentar registrar la asistencia");
+          }
+        });
+
+      document
+        .getElementById("btnGenerarExcel")
+        .addEventListener("click", () => {
+          const table = document.getElementById("tablaAsistencias");
+          const rows = table.querySelectorAll("tr");
+          const data = [];
+
+          // Obtener datos de la tabla
+          rows.forEach((row) => {
+            const rowData = [];
+            row.querySelectorAll("th, td").forEach((cell) => {
+              rowData.push(cell.textContent);
+            });
+            data.push(rowData);
+          });
+
+          // Crear el libro de Excel
+          const ws = XLSX.utils.aoa_to_sheet(data);
+          const wb = XLSX.utils.book_new();
+          XLSX.utils.book_append_sheet(wb, ws, "Asistencias");
+
+          // Convertir el libro de Excel a una cadena binaria
+          const wbout = XLSX.write(wb, { bookType: "xlsx", type: "binary" });
+
+          // Convertir la cadena binaria a un Blob y descargarlo
+          saveAs(
+            new Blob([s2ab(wbout)], { type: "application/octet-stream" }),
+            "asistencias.xlsx"
+          );
+        });
+
+      // Función para convertir una cadena a un ArrayBuffer
+      function s2ab(s) {
+        const buf = new ArrayBuffer(s.length);
+        const view = new Uint8Array(buf);
+        for (let i = 0; i < s.length; i++) {
+          view[i] = s.charCodeAt(i) & 0xff;
+        }
+        return buf;
+      }
+
+      // Cargar las asistencias al cargar la página
+      cargarAsistencias();
+    </script>
+  </body>
+</html>
