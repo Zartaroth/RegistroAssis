@@ -1,28 +1,28 @@
 const express = require('express');
-const mysql = require('mysql');
+const mysql = require('mysql2');
 const config = require('./config');
 
 const app = express();
 const port = config.PORT;
 
-// Configuración de la conexión a la base de datos MySQL
-const db = mysql.createConnection({
+// Configuración del pool de conexiones a la base de datos MySQL
+const pool = mysql.createPool({
   host: config.DB_HOST,
   user: config.DB_USER,
   password: config.DB_PASSWORD,
   database: config.DB_NAME,
-  port: config.DB_PORT
+  port: config.DB_PORT,
+  waitForConnections: true,
+  connectionLimit: 10,
+  queueLimit: 0
 });
 
-// Conectar a la base de datos MySQL
-db.connect((err) => {
-  if (err) {
-    throw err;
-  }
-  console.log('Conectado a la base de datos MySQL');
+// Middleware para manejar errores de conexión
+pool.on('error', (err) => {
+  console.error('Error en el pool de conexiones MySQL', err);
 });
 
-// Configuración del middleware para analizar el cuerpo de las solicitudes
+// Middleware para manejar el cuerpo de las solicitudes
 app.use(express.urlencoded({ extended: false }));
 app.use(express.json());
 
@@ -35,35 +35,75 @@ app.get('/', (req, res) => {
 app.post('/registrar-asistencia', (req, res) => {
   const { dni } = req.body;
 
-  // Verificar si el trabajador existe en la base de datos
-  db.query('SELECT * FROM trabajadores WHERE dni = ?', [dni], (err, results) => {
+  // Obtener una conexión del pool
+  pool.getConnection((err, connection) => {
     if (err) {
       throw err;
     }
 
-    if (results.length === 0) {
-      return res.status(400).send('El trabajador no existe');
-    }
-
-    const trabajadorId = results[0].id;
-    const fecha = new Date().toISOString().slice(0, 10);
-
-    // Verificar si ya existe un registro de asistencia para este trabajador en la fecha actual
-    db.query('SELECT * FROM asistencia WHERE trabajador_id = ? AND fecha = ?', [trabajadorId, fecha], (err, results) => {
+    // Iniciar la transacción
+    connection.beginTransaction((err) => {
       if (err) {
+        connection.release();
         throw err;
       }
 
-      if (results.length > 0) {
-        return res.status(400).send('Ya existe un registro de asistencia para este trabajador hoy');
-      }
-
-      // Insertar el nuevo registro de asistencia
-      db.query('INSERT INTO asistencia (trabajador_id, fecha, hora_entrada) VALUES (?, ?, ?)', [trabajadorId, fecha, new Date()], (err, results) => {
+      // Verificar si el trabajador existe en la base de datos
+      connection.query('SELECT * FROM trabajadores WHERE dni = ?', [dni], (err, results) => {
         if (err) {
-          throw err;
+          return connection.rollback(() => {
+            connection.release();
+            throw err;
+          });
         }
-        res.status(200).send('Registro de asistencia exitoso');
+
+        if (results.length === 0) {
+          connection.rollback(() => {
+            connection.release();
+            res.status(400).send('El trabajador no existe');
+          });
+        } else {
+          const trabajadorId = results[0].id;
+          const fecha = new Date().toISOString().slice(0, 10);
+
+          // Verificar si ya existe un registro de asistencia para este trabajador en la fecha actual
+          connection.query('SELECT * FROM asistencia WHERE trabajador_id = ? AND fecha = ?', [trabajadorId, fecha], (err, results) => {
+            if (err) {
+              return connection.rollback(() => {
+                connection.release();
+                throw err;
+              });
+            }
+
+            if (results.length > 0) {
+              connection.rollback(() => {
+                connection.release();
+                res.status(400).send('Ya existe un registro de asistencia para este trabajador hoy');
+              });
+            } else {
+              // Insertar el nuevo registro de asistencia
+              connection.query('INSERT INTO asistencia (trabajador_id, fecha, hora_entrada) VALUES (?, ?, ?)', [trabajadorId, fecha, new Date()], (err, results) => {
+                if (err) {
+                  return connection.rollback(() => {
+                    connection.release();
+                    throw err;
+                  });
+                }
+                // Commit y liberar la conexión
+                connection.commit((err) => {
+                  if (err) {
+                    return connection.rollback(() => {
+                      connection.release();
+                      throw err;
+                    });
+                  }
+                  connection.release();
+                  res.status(200).send('Registro de asistencia exitoso');
+                });
+              });
+            }
+          });
+        }
       });
     });
   });
@@ -71,7 +111,7 @@ app.post('/registrar-asistencia', (req, res) => {
 
 // Ruta para obtener todas las asistencias
 app.get('/asistencias', (req, res) => {
-  db.query('SELECT trabajadores.nombre, DATE_FORMAT(asistencia.fecha, "%d/%m/%Y") AS fecha, asistencia.hora_entrada FROM asistencia JOIN trabajadores ON asistencia.trabajador_id = trabajadores.id', (err, results) => {
+  pool.query('SELECT trabajadores.nombre, DATE_FORMAT(asistencia.fecha, "%d/%m/%Y") AS fecha, asistencia.hora_entrada FROM asistencia JOIN trabajadores ON asistencia.trabajador_id = trabajadores.id', (err, results) => {
     if (err) {
       throw err;
     }
