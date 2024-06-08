@@ -1,5 +1,5 @@
 const config = {
-    PORT_SERV: process.env.PORT || 4000,
+    PORT_SERV: process.env.PORT_SERV || 4000,
     DB_HOST: process.env.DB_HOST || "videntcusco.com",
     DB_USER: process.env.DB_USER || "videntcu_olmer",
     DB_PASSWORD: process.env.DB_PASSWORD || "Jg@MD6EehmHBWwQ",
