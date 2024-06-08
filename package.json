@@ -8,7 +8,8 @@
     "build": "vite build",
     "lint": "eslint . --ext js,jsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
-    "start": "concurrently \"npm run start:client\" \"npm run start:client\"",
+    "start": "vite",
+    "starter": "concurrently \"npm run start:client\" \"npm run start:client\"",
     "start:server": "cd server && node app.js",
     "start:client": "npm run dev",
     "postinstall": "cd server && npm install"
