@@ -13,5 +13,5 @@ app.use(express.json());
 
 app.use('/api', asistencia);
 
-app.listen(config.PORT);
-console.log(`Server is running on port ${config.PORT}.`); 
+app.listen(config.PORT_SERV);
+console.log(`Server is running on port ${config.PORT_SERV}.`); 
