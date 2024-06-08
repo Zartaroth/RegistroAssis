@@ -14,7 +14,7 @@ COPY . .
 RUN npm install
 
 # Exponer el puerto en el que tu aplicación escuchará
-EXPOSE 3000
+EXPOSE 80
 EXPOSE 4000
 
 # Comando para ejecutar tu aplicación
